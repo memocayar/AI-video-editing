@@ -1,0 +1,32 @@
+# Datos personales: nunca se versionan
+private/*
+private/answers/
+!private/README.md
+media/*
+!media/.gitkeep
+catalog/*
+!catalog/.gitkeep
+projects/*/
+!projects/_ejemplo/
+*.sqlite
+*.sqlite3
+*.db
+.env
+
+# Generados
+thumbs/
+renders/
+*.mp4
+*.mov
+*.webm
+*.heic
+*.jpg
+*.jpeg
+*.png
+!docs/**/*.png
+
+# Entorno
+__pycache__/
+.venv/
+node_modules/
+.DS_Store

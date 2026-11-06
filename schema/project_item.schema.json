@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project_item.schema.json",
+  "title": "Ítem de un proyecto de video (capa específica)",
+  "type": "object",
+  "required": ["project", "asset_id", "role", "order"],
+  "properties": {
+    "project": { "type": "string" },
+    "asset_id": { "type": "string" },
+    "order": { "type": "integer", "minimum": 0 },
+    "narrative_beat": { "type": "string" },
+    "role": { "enum": ["hero", "support", "filler", "meme-insert", "stack-member", "before-after", "discard"] },
+    "layout": { "enum": ["full", "letterbox", "stack2", "stack3", "before-after"] },
+    "group_id": { "type": ["string", "null"], "description": "Agrupa los miembros de un stack o par" },
+    "hold_s": { "type": "number", "minimum": 0 },
+    "in_s": { "type": "number", "minimum": 0 },
+    "out_s": { "type": "number", "minimum": 0 },
+    "keep_audio": { "type": "boolean" },
+    "overlay_text": { "type": "string" },
+    "note": { "type": "string" }
+  }
+}

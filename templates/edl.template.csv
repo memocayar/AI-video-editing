@@ -1,0 +1,7 @@
+order,asset_id,narrative_beat,role,layout,group_id,hold_s,in_s,out_s,keep_audio,overlay_text,note
+1,sha256:...,hook,hero,full,,2.0,,,false,"<primera mitad del caption>",
+2,sha256:...,inicio,filler,full,,0.5,,,false,,
+3,sha256:...,inicio,stack-member,stack3,g1,1.2,,,false,,
+4,sha256:...,inicio,stack-member,stack3,g1,1.2,,,false,,
+5,sha256:...,inicio,stack-member,stack3,g1,1.2,,,false,,
+6,sha256:...,desarrollo,support,letterbox,,1.0,0.0,2.5,true,,clip con audio

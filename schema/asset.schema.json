@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "asset.schema.json",
+  "title": "Asset del catálogo (capa general)",
+  "type": "object",
+  "required": ["id", "path", "media_type", "date", "date_source", "date_confidence", "orientation"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "path": { "type": "string" },
+    "media_type": { "enum": ["photo", "video", "screenshot", "meme", "graphic"] },
+    "date": { "type": "string", "format": "date-time" },
+    "date_source": { "enum": ["exif", "filename", "filesystem", "inferred"] },
+    "date_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "orientation": { "enum": ["vertical", "horizontal", "square"] },
+    "era": { "type": "string", "description": "Valor de la lista definida en private/answers/03" },
+    "location_type": { "type": "string" },
+    "content_type": { "type": "array", "items": { "type": "string" } },
+    "vibe": { "type": "array", "items": { "type": "string" }, "description": "Opcional: valores definidos por el usuario" },
+    "estilo_visual": { "type": "array", "items": { "type": "string" } },
+    "temas_personales": { "type": "array", "items": { "type": "string" } },
+    "people": {
+      "type": "object",
+      "properties": {
+        "me_present": { "type": "boolean" },
+        "others_count": { "type": "integer", "minimum": 0 },
+        "others_identifiable": { "type": "boolean" },
+        "minors": { "type": "boolean" },
+        "aliases": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "sensitive": {
+      "type": "object",
+      "properties": {
+        "screen_has_private_data": { "type": "boolean" },
+        "location_revealing": { "type": "boolean" },
+        "not_safe": { "type": "boolean" }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "sharpness": { "type": "number" },
+        "exposure_ok": { "type": "boolean" },
+        "aesthetic_score": { "type": "number" },
+        "llm_quality_1_5": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "video": {
+      "type": "object",
+      "properties": {
+        "duration_s": { "type": "number" },
+        "has_audio": { "type": "boolean" },
+        "speech": { "type": "boolean" },
+        "transcript": { "type": "string" },
+        "best_segment": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "scenes": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }
+      }
+    },
+    "cluster_id": { "type": ["string", "null"] },
+    "is_cluster_keeper": { "type": "boolean" },
+    "pair_key": { "type": ["string", "null"], "description": "Situación repetible para antes/después" },
+    "layout_options": { "type": "array", "items": { "enum": ["full", "letterbox", "stack-candidate"] } },
+    "caption": { "type": "string", "maxLength": 200 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Aborta el commit si hay datos personales en lo staged.
+# Ver docs/02-reglas.md (Privacidad) y private/denylist.txt.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+denylist="$repo_root/private/denylist.txt"
+abort=0
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACM)"
+
+if [ -n "$staged_files" ]; then
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        base="$(basename "$file")"
+
+        case "$file" in
+            private/answers/*)
+                echo "BLOQUEADO: '$file' está bajo private/answers/ (datos personales, nunca se versiona)." >&2
+                abort=1
+                ;;
+            media/*)
+                if [ "$base" != ".gitkeep" ]; then
+                    echo "BLOQUEADO: '$file' está bajo media/ (originales intocables, nunca se versiona)." >&2
+                    abort=1
+                fi
+                ;;
+            catalog/*)
+                if [ "$base" != ".gitkeep" ]; then
+                    echo "BLOQUEADO: '$file' está bajo catalog/ (catálogo con datos personales, nunca se versiona)." >&2
+                    abort=1
+                fi
+                ;;
+        esac
+    done <<< "$staged_files"
+
+    if [ -f "$denylist" ]; then
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            while IFS= read -r pattern; do
+                [ -z "$pattern" ] && continue
+                case "$pattern" in \#*) continue ;; esac
+                if git show ":$file" 2>/dev/null | grep -aiqF -- "$pattern"; then
+                    echo "BLOQUEADO: '$file' contiene un string de private/denylist.txt." >&2
+                    abort=1
+                fi
+            done < "$denylist"
+        done <<< "$staged_files"
+    fi
+fi
+
+if [ "$abort" -eq 1 ]; then
+    echo "" >&2
+    echo "Commit abortado. Sacá esos archivos/strings del staging (git restore --staged <archivo>) antes de reintentar." >&2
+    exit 1
+fi
+
+exit 0
