@@ -23,6 +23,8 @@ from pathlib import Path
 import jsonschema
 from imagededup.methods import CNN, PHash
 
+from review_lib import apply_decision, load_decisions
+
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((ROOT / "schema" / "asset.schema.json").read_text())
 VALIDATOR = jsonschema.Draft202012Validator(SCHEMA, format_checker=jsonschema.FormatChecker())
@@ -129,7 +131,7 @@ def build_groups(assets, edges):
     return clusters, series
 
 
-def write_db(db, assets, clusters, series):
+def write_db(db, assets, clusters, series, decisions):
     in_cluster = {m: (c["id"], m == c["keeper"]) for c in clusters for m in c["members"]}
     in_series = {m: s["id"] for s in series for m in s["members"]}
 
@@ -157,6 +159,8 @@ def write_db(db, assets, clusters, series):
             a["tags"] = tags
         else:
             a.pop("tags", None)
+        if aid in decisions:
+            a = apply_decision(a, decisions[aid])
         problems = [e.message for e in VALIDATOR.iter_errors(a)]
         if problems:
             errors.append((aid, problems))
@@ -174,8 +178,23 @@ def write_db(db, assets, clusters, series):
     return errors
 
 
+def suggestions(clusters, series):
+    sug = {}
+    for s in series:
+        for m in s["members"]:
+            sug[m] = "collage"
+    for c in clusters:
+        for m in c["members"]:
+            if m != c["keeper"]:
+                sug[m] = "descarte"
+            else:
+                sug.setdefault(m, "conservar")
+    return sug
+
+
 def write_html(assets, clusters, series, out):
     out.parent.mkdir(parents=True, exist_ok=True)
+    sug = suggestions(clusters, series)
     n = 0
 
     def section(title, groups, kind):
@@ -191,11 +210,16 @@ def write_html(assets, clusters, series, out):
                 src = os.path.relpath(ROOT / info["thumb"], out.parent)
                 extra = f" · {a['video']['duration_s']}s" if "video" in a else ""
                 is_keeper = m == g["keeper"]
+                buttons = "".join(
+                    f'<button data-d="{d}">{label}</button>'
+                    for d, label in (("conservar", "Conservar"), ("descarte", "Descarte"), ("collage", "Collage")))
                 items.append(
-                    f'<figure class="item{" keeper" if is_keeper else ""}"><img loading="lazy" src="{html.escape(src)}">'
+                    f'<figure class="item{" keeper" if is_keeper else ""}" data-id="{m}" data-sug="{sug[m]}">'
+                    f'<img loading="lazy" src="{html.escape(src)}">'
                     f'<figcaption><b>#{n}</b> {html.escape(Path(a["path"]).name)}<br>'
                     f'{a["date"][:10]} · {t.get("width")}×{t.get("height")}{extra}'
-                    f'{" · <b>KEEPER</b>" if is_keeper else ""}</figcaption></figure>')
+                    f'{" · <b>KEEPER</b>" if is_keeper else ""}</figcaption>'
+                    f'<div class="btns">{buttons}</div><div class="state"></div></figure>')
             cards.append(
                 f'<section><h3>{kind} {gi} <small>{g["id"]} · {len(g["members"])} archivos</small></h3>'
                 f'<div class="grid">{"".join(items)}</div></section>')
@@ -221,10 +245,61 @@ small{{color:var(--muted);font-weight:normal}}
 .item.keeper{{border-color:var(--accent)}}
 .item img{{width:100%;height:220px;object-fit:contain;background:#000;border-radius:4px}}
 figcaption{{font-size:12px;color:var(--muted);margin-top:4px;word-break:break-all}}
+.btns{{display:flex;gap:4px;margin-top:6px}}
+.btns button{{flex:1;font:11px system-ui;padding:4px 0;border-radius:4px;border:1px solid var(--muted);
+  background:transparent;color:var(--fg);cursor:pointer}}
+.btns button.sug{{border-style:dashed}}
+.btns button.on[data-d=conservar]{{background:#0a7;color:#fff;border-color:#0a7}}
+.btns button.on[data-d=descarte]{{background:#c33;color:#fff;border-color:#c33}}
+.btns button.on[data-d=collage]{{background:#36c;color:#fff;border-color:#36c}}
+.item.d-descarte img{{opacity:.35}}
+.state{{font-size:11px;color:var(--muted);min-height:14px;margin-top:2px}}
+.bar{{position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}}
+.bar button{{padding:6px 12px;border-radius:6px;border:1px solid var(--muted);background:var(--card);color:var(--fg);cursor:pointer}}
+#warn{{color:#c33}}
 </style></head><body>
 <h1>Duplicados y series</h1>
-<p>{len(assets)} assets. Corregí por número: "#12 es keeper", "#30 no va en su serie".</p>
+<p>{len(assets)} assets. Borde punteado = sugerencia. Nada se borra: "Descarte" solo marca el archivo en el catálogo.</p>
+<div class="bar"><button id="accept">Aceptar sugerencias pendientes</button><span id="count"></span><span id="warn"></span></div>
 {body}
+<script>
+const figs = [...document.querySelectorAll('figure[data-id]')];
+let decisions = {{}};
+function render() {{
+  for (const f of figs) {{
+    const d = decisions[f.dataset.id];
+    f.className = f.className.replace(/ ?d-\\w+/g, '') + (d ? ' d-' + d : '');
+    for (const b of f.querySelectorAll('button')) {{
+      b.classList.toggle('on', b.dataset.d === d);
+      b.classList.toggle('sug', !d && b.dataset.d === f.dataset.sug);
+    }}
+    f.querySelector('.state').textContent = d ? 'guardado: ' + d : 'pendiente';
+  }}
+  const ids = new Set(figs.map(f => f.dataset.id));
+  const done = [...ids].filter(id => decisions[id]).length;
+  document.getElementById('count').textContent = done + ' / ' + ids.size + ' decididos';
+}}
+async function save(batch) {{
+  try {{
+    const r = await fetch('/api/decisions', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(batch)}});
+    if (!r.ok) throw new Error(await r.text());
+    decisions = await r.json();
+    document.getElementById('warn').textContent = '';
+  }} catch (e) {{
+    document.getElementById('warn').textContent = 'No se pudo guardar. Abrí la galería con: .venv/bin/python scripts/02_review.py';
+  }}
+  render();
+}}
+for (const f of figs) for (const b of f.querySelectorAll('button'))
+  b.addEventListener('click', () => save({{[f.dataset.id]: b.dataset.d}}));
+document.getElementById('accept').addEventListener('click', () => {{
+  const batch = {{}};
+  for (const f of figs) if (!decisions[f.dataset.id]) batch[f.dataset.id] = f.dataset.sug;
+  save(batch);
+}});
+fetch('/api/decisions').then(r => r.json()).then(d => {{ decisions = d; render(); }})
+  .catch(() => {{ document.getElementById('warn').textContent = 'Modo solo lectura. Para marcar, abrí con: .venv/bin/python scripts/02_review.py'; render(); }});
+</script>
 </body></html>"""
     out.write_text(doc)
 
@@ -243,7 +318,7 @@ def main():
 
     edges = find_edges(assets, args.phash_max, args.cnn_min)
     clusters, series = build_groups(assets, edges)
-    errors = write_db(db, assets, clusters, series)
+    errors = write_db(db, assets, clusters, series, load_decisions(catalog))
     out = catalog / "review" / "clusters.html"
     write_html(assets, clusters, series, out)
 
