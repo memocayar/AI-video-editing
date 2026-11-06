@@ -162,6 +162,14 @@ def stage_scenes(catalog, force, workers):
     return len(todo)
 
 
+def load_audio_16k(path):
+    import numpy as np
+    out = subprocess.run(
+        ["ffmpeg", "-v", "error", "-nostdin", "-i", str(path), "-vn", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
+        capture_output=True, check=True)
+    return np.frombuffer(out.stdout, np.int16).astype(np.float32) / 32768.0
+
+
 def stage_speech(catalog, force, workers):
     from faster_whisper import WhisperModel
 
@@ -180,8 +188,13 @@ def stage_speech(catalog, force, workers):
     todo.sort(key=lambda x: x[1]["video"]["duration_s"])
     for i, (aid, a) in enumerate(todo, 1):
         try:
+            audio = load_audio_16k(ROOT / a["path"])
+            if audio.size == 0:
+                merge(db, catalog, aid, "video", {"speech": False})
+                db.commit()
+                continue
             segments, info = model.transcribe(
-                str(ROOT / a["path"]), vad_filter=True, beam_size=1, condition_on_previous_text=False)
+                audio, vad_filter=True, beam_size=1, condition_on_previous_text=False)
             kept = [s for s in segments if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0 and s.text.strip()]
         except Exception as e:
             print(f"  speech error {Path(a['path']).name}: {e}", file=sys.stderr)
