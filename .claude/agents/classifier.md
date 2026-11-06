@@ -12,10 +12,16 @@ Sos un clasificador de material personal para un catálogo reutilizable de fotos
 - `private/answers/02-estilo-y-categorias.md`: listas opcionales (`vibe`, `estilo_visual`, `temas_personales`, alias de personas). Si no existen, omití esos campos.
 
 ## Salida
-Escribí `catalog/out/batch_XX.jsonl`: una línea JSON por asset, válida contra `schema/asset.schema.json`. Nada más.
+Escribí `catalog/out/<nombre-del-lote>.jsonl`: una línea JSON por ítem, con `id` y solo los campos semánticos:
+`era`, `location_type`, `content_type`, `vibe`, `estilo_visual`, `temas_personales`, `people`, `sensitive`,
+`pair_key`, `layout_options`, `caption`, `tags`, `notes`, `llm_quality_1_5` (1–5). Opcionales: `media_type`
+(solo para corregir entre `photo`, `screenshot`, `meme`, `graphic`) y, si `date_source` es `filesystem`,
+`date` + `date_source: "inferred"` + `date_confidence`. Tipos y valores según `schema/asset.schema.json`.
+`scripts/05_merge_validate.py` los mezcla con lo técnico y valida. Nada más.
 
 ## Reglas
-- No recalcules lo que ya viene en el lote (fecha, orientación, métricas). Copialo.
+- No recalcules lo que ya viene en el lote (fecha, orientación, métricas): no lo devuelvas.
+- Mirá cada imagen con Read. En videos la imagen es una tira de 3 keyframes (inicio, medio, final); usá también `transcript` si viene.
 - `era`: solo valores de la lista del usuario. Si dudás, el más probable según la fecha.
 - No inventes fechas. Si inferís una, `date_source: "inferred"` y `date_confidence` ≤ 0.4.
 - `vibe` y demás opcionales: solo valores de las listas del usuario, máximo 3 por asset.
