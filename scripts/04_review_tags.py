@@ -26,6 +26,8 @@ def flags(a):
         out.append("terceros")
     if p.get("minors"):
         out.append("menores")
+    if "fecha-desconocida" in a.get("tags", []):
+        out.append("fecha-desconocida")
     return out
 
 
